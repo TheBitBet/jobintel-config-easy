@@ -69,3 +69,5 @@ Esempi:
 
 ## Dove finiscono i dati
 SQLite in `data/jobintel.sqlite`.
+
+##Testing configeasy: script python per facilitare la compilazione yaml##
