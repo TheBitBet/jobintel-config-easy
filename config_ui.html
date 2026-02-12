@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Jobintel Config Editor</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        max-width: 960px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h1, h2 {
+        margin-bottom: 0.25rem;
+      }
+      section {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      label {
+        display: block;
+        margin: 0.25rem 0;
+      }
+      input[type="text"],
+      input[type="number"],
+      textarea,
+      select {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 0.4rem;
+        margin-top: 0.2rem;
+      }
+      textarea {
+        font-family: monospace;
+      }
+      .row {
+        display: flex;
+        gap: 1rem;
+      }
+      .row > div {
+        flex: 1;
+      }
+      button {
+        padding: 0.6rem 1rem;
+        margin-right: 0.5rem;
+        cursor: pointer;
+      }
+      .status {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+      }
+      .status.error {
+        color: #b00020;
+      }
+      .status.success {
+        color: #1b5e20;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Jobintel Config Editor</h1>
+    <p>
+      This editor starts from <code>config/default.yml</code> and lets you create a new config
+      under <code>config/examples/&lt;filename&gt;.yml</code>.
+    </p>
+
+    <section>
+      <h2>Save as</h2>
+      <label>
+        Filename (without extension, will be saved as <code>.yml</code> in <code>config/examples/</code>):
+        <input type="text" id="filename" placeholder="e.g. data_analyst_berlin" />
+      </label>
+      <div id="filename-status" class="status"></div>
+    </section>
+
+    <section>
+      <h2>Pipeline</h2>
+      <div class="row">
+        <div>
+          <label>
+            Instant threshold
+            <input type="number" id="instant_threshold" />
+          </label>
+        </div>
+        <div>
+          <label>
+            Digest threshold
+            <input type="number" id="digest_threshold" />
+          </label>
+        </div>
+        <div>
+          <label>
+            Digest max items
+            <input type="number" id="digest_max_items" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sources: Greenhouse</h2>
+      <label>
+        Enabled
+        <select id="greenhouse_enabled">
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </label>
+      <label>
+        Boards (comma-separated)
+        <textarea id="greenhouse_boards" rows="3"></textarea>
+      </label>
+      <label>
+        Include content
+        <select id="greenhouse_content">
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Scoring</h2>
+      <label>
+        Include roles (comma-separated)
+        <textarea id="include_roles" rows="3"></textarea>
+      </label>
+      <label>
+        Include skills (comma-separated)
+        <textarea id="include_skills" rows="3"></textarea>
+      </label>
+      <label>
+        Exclude keywords (comma-separated)
+        <textarea id="exclude_keywords" rows="3"></textarea>
+      </label>
+    </section>
+
+    <section>
+      <h2>Storage</h2>
+      <label>
+        SQLite path
+        <input type="text" id="sqlite_path" />
+      </label>
+    </section>
+
+    <section>
+      <h2>Notifications</h2>
+      <label>
+        Mode
+        <select id="notify_mode">
+          <option value="stdout">stdout</option>
+          <option value="telegram">telegram</option>
+        </select>
+      </label>
+      <label>
+        Telegram bot token
+        <input type="text" id="telegram_bot_token" />
+      </label>
+      <label>
+        Telegram chat ID
+        <input type="text" id="telegram_chat_id" />
+      </label>
+    </section>
+
+    <section>
+      <button id="load-default">Reload from default.yml</button>
+      <button id="save-config">Save to config/examples/&lt;filename&gt;.yml</button>
+      <div id="save-status" class="status"></div>
+    </section>
+
+    <script>
+      const API_BASE = "http://127.0.0.1:8000/api";
+
+      function parseList(text) {
+        return text
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+      }
+
+      function setList(id, arr) {
+        document.getElementById(id).value = (arr || []).join(", ");
+      }
+
+      async function loadDefaultConfig() {
+        const status = document.getElementById("save-status");
+        status.textContent = "Loading default config...";
+        status.className = "status";
+
+        try {
+          const res = await fetch(`${API_BASE}/config/default`);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          const cfg = await res.json();
+
+          // Pipeline
+          document.getElementById("instant_threshold").value =
+            cfg.pipeline?.instant_threshold ?? 85;
+          document.getElementById("digest_threshold").value =
+            cfg.pipeline?.digest_threshold ?? 70;
+          document.getElementById("digest_max_items").value =
+            cfg.pipeline?.digest_max_items ?? 15;
+
+          // Sources: greenhouse
+          const gh = (cfg.sources && cfg.sources.greenhouse) || {};
+          document.getElementById("greenhouse_enabled").value = String(
+            gh.enabled ?? true
+          );
+          setList("greenhouse_boards", gh.boards || []);
+          document.getElementById("greenhouse_content").value = String(
+            gh.content ?? true
+          );
+
+          // Scoring
+          const inc = (cfg.scoring && cfg.scoring.include) || {};
+          const exc = (cfg.scoring && cfg.scoring.exclude) || {};
+          setList("include_roles", inc.roles || []);
+          setList("include_skills", inc.skills || []);
+          setList("exclude_keywords", exc.keywords || []);
+
+          // Storage
+          document.getElementById("sqlite_path").value =
+            cfg.storage?.sqlite_path ?? "data/jobintel.sqlite";
+
+          // Notify
+          document.getElementById("notify_mode").value =
+            cfg.notify?.mode ?? "stdout";
+          document.getElementById("telegram_bot_token").value =
+            cfg.notify?.telegram?.bot_token ?? "";
+          document.getElementById("telegram_chat_id").value =
+            cfg.notify?.telegram?.chat_id ?? "";
+
+          status.textContent = "Loaded default config.";
+          status.className = "status success";
+        } catch (err) {
+          status.textContent = "Error loading default config: " + err.message;
+          status.className = "status error";
+        }
+      }
+
+      async function saveConfig() {
+        const status = document.getElementById("save-status");
+        const filenameStatus = document.getElementById("filename-status");
+        status.textContent = "";
+        filenameStatus.textContent = "";
+        filenameStatus.className = "status";
+
+        const filename = document.getElementById("filename").value.trim();
+        if (!filename) {
+          filenameStatus.textContent = "Please enter a filename.";
+          filenameStatus.className = "status error";
+          return;
+        }
+
+        const payload = {
+          filename,
+          config: {
+            pipeline: {
+              instant_threshold: parseInt(
+                document.getElementById("instant_threshold").value,
+                10
+              ),
+              digest_threshold: parseInt(
+                document.getElementById("digest_threshold").value,
+                10
+              ),
+              digest_max_items: parseInt(
+                document.getElementById("digest_max_items").value,
+                10
+              ),
+            },
+            sources: {
+              greenhouse: {
+                enabled:
+                  document.getElementById("greenhouse_enabled").value === "true",
+                boards: parseList(
+                  document.getElementById("greenhouse_boards").value
+                ),
+                content:
+                  document.getElementById("greenhouse_content").value === "true",
+              },
+            },
+            scoring: {
+              include: {
+                roles: parseList(
+                  document.getElementById("include_roles").value
+                ),
+                skills: parseList(
+                  document.getElementById("include_skills").value
+                ),
+              },
+              exclude: {
+                keywords: parseList(
+                  document.getElementById("exclude_keywords").value
+                ),
+              },
+              // you can wire up weights here later if needed
+              weights: {},
+            },
+            storage: {
+              sqlite_path: document.getElementById("sqlite_path").value.trim(),
+            },
+            notify: {
+              mode: document.getElementById("notify_mode").value,
+              telegram: {
+                bot_token:
+                  document.getElementById("telegram_bot_token").value.trim(),
+                chat_id:
+                  document.getElementById("telegram_chat_id").value.trim(),
+              },
+            },
+          },
+        };
+
+        status.textContent = "Saving...";
+        status.className = "status";
+
+        try {
+          const res = await fetch(`${API_BASE}/config/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const msg = errData.detail || `HTTP ${res.status}`;
+            throw new Error(msg);
+          }
+
+          const data = await res.json();
+          status.textContent = `Saved: ${data.path}`;
+          status.className = "status success";
+        } catch (err) {
+          status.textContent = "Error saving config: " + err.message;
+          status.className = "status error";
+        }
+      }
+
+      document
+        .getElementById("load-default")
+        .addEventListener("click", loadDefaultConfig);
+      document
+        .getElementById("save-config")
+        .addEventListener("click", saveConfig);
+
+      // Load once on page load
+      loadDefaultConfig();
+    </script>
+  </body>
+</html>
