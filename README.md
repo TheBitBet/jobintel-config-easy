@@ -72,3 +72,4 @@ SQLite in `data/jobintel.sqlite`.
 
 ##Testing configeasy: script python per facilitare la compilazione yaml##
 todo: pip install fastapi uvicorn pyyaml
+uvicorn config_server:app --reload -> Lancio il server
