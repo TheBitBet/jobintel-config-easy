@@ -71,3 +71,4 @@ Esempi:
 SQLite in `data/jobintel.sqlite`.
 
 ##Testing configeasy: script python per facilitare la compilazione yaml##
+todo: pip install fastapi uvicorn pyyaml
