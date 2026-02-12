@@ -2,7 +2,7 @@
 
 Pipeline di job intelligence: raccoglie, valuta, deduplica e notifica offerte di lavoro.
 
-## Cosa fa
+## Cosa fa 
 - Colleziona job da Greenhouse
 - Assegna uno score con regole semplici
 - Evita duplicati con SQLite
